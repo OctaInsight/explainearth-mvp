@@ -203,42 +203,82 @@ def forecast_chart(site):
     return fig
 
 def map_chart(selected):
-    lats, lons, names, risks, colours, sizes = [], [], [], [], [], []
-    for name, s in SITES.items():
-        lats.append(s["lat"]); lons.append(s["lon"])
-        names.append(name.split("—")[1].strip())
-        risks.append(s["risk"]); colours.append(risk_colour(s["risk_level"]))
-        sizes.append(14 + s["risk"] // 8)
-
     fig = go.Figure()
-    for i, (la, lo, nm, ri, co, sz) in enumerate(zip(lats, lons, names, risks, colours, sizes)):
-        is_sel = list(SITES.keys())[i] == selected
-        fig.add_trace(go.Scattermapbox(
-            lat=[la], lon=[lo],
+
+    # Background rectangle representing Norwegian coast region
+    fig.add_shape(type="rect", x0=4.5, y0=58.3, x1=8.8, y1=63.2,
+                  fillcolor=CARD2, line=dict(color=TEAL2, width=1))
+
+    # Draw site markers
+    for name, s in SITES.items():
+        short = name.split("—")[1].strip()
+        col = risk_colour(s["risk_level"])
+        is_sel = name == selected
+        sz = 16 + s["risk"] // 8
+        fig.add_trace(go.Scatter(
+            x=[s["lon"]], y=[s["lat"]],
             mode="markers+text",
-            marker=dict(size=sz, color=co, opacity=1.0 if is_sel else 0.65),
-            text=[nm], textposition="top right",
-            textfont=dict(color=WHITE, size=11),
-            hovertemplate=f"<b>{nm}</b><br>HAB Risk: {ri}%<extra></extra>",
-            name=nm,
+            marker=dict(
+                size=sz,
+                color=col,
+                opacity=1.0 if is_sel else 0.7,
+                line=dict(color=WHITE, width=2 if is_sel else 1),
+                symbol="circle",
+            ),
+            text=[f"  {short}"],
+            textposition="middle right",
+            textfont=dict(color=WHITE, size=11, family="Arial"),
+            hovertemplate=(
+                f"<b>{short}</b><br>"
+                f"HAB Risk: {s['risk']}%<br>"
+                f"Risk level: {s['risk_level']}<br>"
+                f"SST: {s['sst']}°C<extra></extra>"
+            ),
+            name=short,
+            showlegend=False,
         ))
+
+    # Risk annotations
+    for name, s in SITES.items():
+        short = name.split("—")[1].strip()
+        col = risk_colour(s["risk_level"])
+        fig.add_annotation(
+            x=s["lon"], y=s["lat"]-0.18,
+            text=f"{s['risk']}%",
+            font=dict(color=col, size=10, family="Arial"),
+            showarrow=False,
+        )
+
     fig.update_layout(
-        mapbox=dict(
-            style="carto-darkmatter",
-            center=dict(lat=60.5, lon=6.0), zoom=6,
-        ),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=0, r=0, t=0, b=0),
+        plot_bgcolor=CARD,
+        margin=dict(l=40, r=20, t=10, b=40),
         height=360,
         showlegend=False,
+        xaxis=dict(
+            title=dict(text="Longitude (°E)", font=dict(color=DIM, size=11)),
+            range=[4.2, 9.2], color=DIM,
+            gridcolor="rgba(15,110,86,0.2)", linecolor=TEAL2,
+            tickfont=dict(color=DIM, size=10),
+        ),
+        yaxis=dict(
+            title=dict(text="Latitude (°N)", font=dict(color=DIM, size=11)),
+            range=[58.0, 63.5], color=DIM,
+            gridcolor="rgba(15,110,86,0.2)", linecolor=TEAL2,
+            tickfont=dict(color=DIM, size=10),
+        ),
+        annotations=[
+            dict(x=0.01, y=0.99, xref="paper", yref="paper",
+                 text="Norwegian Aquaculture Sites", showarrow=False,
+                 font=dict(color=LIGHT, size=12), xanchor="left", yanchor="top"),
+        ]
     )
     return fig
 
 def sst_map():
-    # Simulated SST grid over Norwegian coast
-    lats = np.linspace(58.5, 63.0, 22)
-    lons = np.linspace(4.5, 8.5, 22)
+    # Simulated SST grid over Norwegian coast — pure Plotly heatmap, no token needed
+    lats = np.linspace(58.5, 63.0, 40)
+    lons = np.linspace(4.5, 8.5, 40)
     lon_grid, lat_grid = np.meshgrid(lons, lats)
 
     # Simulate SST with warm anomalies near high-risk sites
@@ -246,93 +286,91 @@ def sst_map():
         + 2.5 * np.exp(-((lat_grid-60.2)**2 + (lon_grid-6.4)**2) / 1.2) \
         + 1.8 * np.exp(-((lat_grid-59.2)**2 + (lon_grid-5.7)**2) / 0.8) \
         + 0.8 * np.exp(-((lat_grid-61.9)**2 + (lon_grid-5.6)**2) / 0.6) \
-        + np.random.RandomState(42).normal(0, 0.15, lon_grid.shape)
+        + np.random.RandomState(42).normal(0, 0.12, lon_grid.shape)
 
-    sst_flat = sst.flatten()
-    lat_flat = lat_grid.flatten()
-    lon_flat = lon_grid.flatten()
-
-    # Map SST to colour — cool teal → warm amber → hot red
-    def sst_to_color(val, vmin=9.5, vmax=14.5):
-        t = max(0, min(1, (val - vmin) / (vmax - vmin)))
-        if t < 0.4:
-            # teal → green
-            r = int(10 + t/0.4 * (30 - 10))
-            g = int(80 + t/0.4 * (120 - 80))
-            b = int(80 - t/0.4 * 40)
-        elif t < 0.7:
-            # green → amber
-            s = (t - 0.4) / 0.3
-            r = int(30 + s * 200)
-            g = int(120 + s * 30)
-            b = int(40 - s * 30)
-        else:
-            # amber → red
-            s = (t - 0.7) / 0.3
-            r = int(230)
-            g = int(150 - s * 90)
-            b = int(10 - s * 5)
-        return f"rgb({r},{g},{b})"
-
-    colours = [sst_to_color(v) for v in sst_flat]
+    # Round lat/lon labels nicely
+    lat_labels = [f"{l:.1f}°N" for l in lats[::4]]
+    lon_labels = [f"{l:.1f}°E" for l in lons[::4]]
 
     fig = go.Figure()
 
-    # Draw coloured grid points as filled circles — creates heatmap effect
-    fig.add_trace(go.Scattermapbox(
-        lat=lat_flat.tolist(),
-        lon=lon_flat.tolist(),
-        mode="markers",
-        marker=dict(
-            size=18,
-            color=sst_flat.tolist(),
-            colorscale=[
-                [0.0, "#0a3a5a"],
-                [0.3, "#0F6E56"],
-                [0.6, "#e09a3f"],
-                [1.0, "#e07a5f"],
-            ],
-            cmin=9.5,
-            cmax=14.5,
-            opacity=0.75,
-            colorbar=dict(
-                title=dict(text="SST °C", font=dict(color=LIGHT, size=12)),
-                tickfont=dict(color=LIGHT, size=11),
-                thickness=12,
-                len=0.7,
-                x=1.0,
-            ),
+    # Main heatmap
+    fig.add_trace(go.Heatmap(
+        z=sst,
+        x=lons.tolist(),
+        y=lats.tolist(),
+        colorscale=[
+            [0.0,  "#0a2a4a"],
+            [0.25, "#0a3a2a"],
+            [0.5,  "#0F6E56"],
+            [0.75, "#e09a3f"],
+            [1.0,  "#e07a5f"],
+        ],
+        zmin=9.5, zmax=14.5,
+        colorbar=dict(
+            title=dict(text="SST °C", font=dict(color=LIGHT, size=12)),
+            tickfont=dict(color=LIGHT, size=11),
+            tickvals=[10, 11, 12, 13, 14],
+            ticktext=["10°C", "11°C", "12°C", "13°C", "14°C"],
+            thickness=14,
+            len=0.8,
         ),
-        hovertemplate="Lat: %{lat:.2f}°N<br>Lon: %{lon:.2f}°E<br>SST: %{marker.color:.1f}°C<extra></extra>",
+        hovertemplate="Lon: %{x:.2f}°E<br>Lat: %{y:.2f}°N<br>SST: %{z:.1f}°C<extra></extra>",
         name="SST",
     ))
 
-    # Overlay site markers on top
-    for name, s in SITES.items():
-        short = name.split("—")[1].strip()
-        col = risk_colour(s["risk_level"])
-        fig.add_trace(go.Scattermapbox(
-            lat=[s["lat"]], lon=[s["lon"]],
+    # Overlay aquaculture site markers as scatter points
+    site_lons = [s["lon"] for s in SITES.values()]
+    site_lats = [s["lat"] for s in SITES.values()]
+    site_names = [n.split("—")[1].strip() for n in SITES.keys()]
+    site_risks = [s["risk"] for s in SITES.values()]
+    site_ssts  = [s["sst"] for s in SITES.values()]
+    site_cols  = [risk_colour(s["risk_level"]) for s in SITES.values()]
+
+    for i in range(len(site_lons)):
+        fig.add_trace(go.Scatter(
+            x=[site_lons[i]], y=[site_lats[i]],
             mode="markers+text",
-            marker=dict(size=14, color=col, opacity=1.0),
-            text=[short], textposition="top right",
-            textfont=dict(color=WHITE, size=11),
-            hovertemplate=f"<b>{short}</b><br>HAB Risk: {s['risk']}%<br>SST: {s['sst']}°C<extra></extra>",
-            name=short,
+            marker=dict(
+                size=16,
+                color=site_cols[i],
+                line=dict(color=WHITE, width=2),
+                symbol="circle",
+            ),
+            text=[site_names[i]],
+            textposition="top right",
+            textfont=dict(color=WHITE, size=11, family="Arial"),
+            hovertemplate=(
+                f"<b>{site_names[i]}</b><br>"
+                f"HAB Risk: {site_risks[i]}%<br>"
+                f"SST: {site_ssts[i]}°C<extra></extra>"
+            ),
             showlegend=False,
         ))
 
     fig.update_layout(
-        mapbox=dict(
-            style="carto-darkmatter",
-            center=dict(lat=60.5, lon=6.2),
-            zoom=5.2,
-        ),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=0, r=0, t=0, b=0),
+        plot_bgcolor=CARD,
+        margin=dict(l=50, r=20, t=10, b=50),
         height=380,
-        showlegend=False,
+        xaxis=dict(
+            title=dict(text="Longitude (°E)", font=dict(color=DIM, size=11)),
+            color=DIM, gridcolor="rgba(15,110,86,0.33)", linecolor=TEAL2,
+            tickfont=dict(color=DIM, size=10),
+        ),
+        yaxis=dict(
+            title=dict(text="Latitude (°N)", font=dict(color=DIM, size=11)),
+            color=DIM, gridcolor="rgba(15,110,86,0.33)", linecolor=TEAL2,
+            tickfont=dict(color=DIM, size=10),
+        ),
+        annotations=[dict(
+            x=0.01, y=0.98, xref="paper", yref="paper",
+            text="Norwegian Coast — Sea Surface Temperature",
+            showarrow=False,
+            font=dict(color=LIGHT, size=12),
+            bgcolor=CARD, bordercolor=TEAL2, borderwidth=1,
+            xanchor="left", yanchor="top",
+        )],
     )
     return fig
 
