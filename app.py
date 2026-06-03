@@ -36,7 +36,7 @@ st.markdown(f"""<style>
   .alert-amber{{background:#2a1f0a;border-left:4px solid {AMBER};border-radius:6px;padding:14px 18px;margin-bottom:12px;}}
   .alert-green{{background:#0a2a1a;border-left:4px solid {TEAL};border-radius:6px;padding:14px 18px;margin-bottom:12px;}}
   .rec{{background:{CARD2};border:0.5px solid {TEAL2};border-left:4px solid {TEAL};border-radius:6px;padding:14px 18px;margin-bottom:10px;}}
-  .src-badge{{display:inline-block;background:#0a2a1a;border:1px solid {TEAL2};color:{DIM};font-size:10px;padding:2px 8px;border-radius:4px;margin-left:8px;}}
+  .proto-badge{{display:inline-block;background:#0a2a1a;border:1px solid {TEAL2};color:{DIM};font-size:10px;padding:2px 8px;border-radius:4px;margin-left:6px;vertical-align:middle;}}
 </style>""", unsafe_allow_html=True)
 
 def rcol(lvl): return {"CRITICAL":RED,"HIGH":AMBER,"MEDIUM":"#d4c44a","LOW":TEAL}[lvl]
@@ -49,67 +49,93 @@ with st.spinner("Fetching environmental data..."):
 SITES = {}
 for name, coords in SITE_COORDS.items():
     o = obs.get(name, {})
-    sst        = o.get("sst", 12.0)
-    nutrient   = o.get("nutrient", 0.5)
-    chlorophyll= o.get("chlorophyll", 2.5)
-    baseline   = SST_BASELINE.get(name, 12.0)
+    sst         = o.get("sst", 12.0)
+    nutrient    = o.get("nutrient", 0.5)
+    chlorophyll = o.get("chlorophyll", 2.5)
+    baseline    = SST_BASELINE.get(name, 12.0)
     risk, level, weeks = compute_hab_risk(sst, baseline, nutrient, chlorophyll)
     SITES[name] = {
         **coords,
-        "sst":        sst,
-        "sst_trend":  o.get("sst_trend", f"+{round(sst-baseline,1)}°C vs baseline"),
-        "nutrient":   nutrient,
-        "chlorophyll":chlorophyll,
-        "wind":       o.get("wind", "N/A"),
-        "current":    o.get("current", "N/A"),
-        "risk":       risk,
-        "risk_level": level,
-        "weeks":      weeks,
-        "data_source":o.get("data_source", "Simulated"),
+        "sst":         sst,
+        "sst_trend":   o.get("sst_trend", f"+{round(sst-baseline,1)}°C vs baseline"),
+        "nutrient":    nutrient,
+        "chlorophyll": chlorophyll,
+        "wind":        o.get("wind", "N/A"),
+        "current":     o.get("current", "N/A"),
+        "risk":        risk,
+        "risk_level":  level,
+        "weeks":       weeks,
+        "data_source": o.get("data_source", "Simulated"),
     }
 
 data_source = list(SITES.values())[0]["data_source"]
-src_label   = "🛰 Live CMEMS data" if data_source == "CMEMS NRT" else "📊 Simulated data"
+is_live     = data_source == "CMEMS NRT"
+
+# ── PLATFORM STATUS TEXT (shared, shown via expander) ─────────────────────────
+def platform_status_block():
+    st.markdown(f"""
+    <div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;">
+      <div style="color:{WHITE};font-size:15px;font-weight:600;margin-bottom:4px;">Platform Status</div>
+      <div style="color:{DIM};font-size:13px;margin-bottom:16px;">
+        We believe in transparency. ExplainEarth clearly distinguishes between live data,
+        prototype models, and planned integrations.
+      </div>
+
+      <div style="color:{TEAL};font-size:11px;font-weight:700;letter-spacing:.06em;
+                  text-transform:uppercase;margin-bottom:8px;">✅ Live Data</div>
+      <div style="color:{LIGHT};font-size:13px;line-height:1.8;margin-bottom:16px;">
+        <b>Sea Surface Temperature (SST)</b><br>
+        <span style="color:{DIM};">Near-real-time Copernicus satellite data</span><br><br>
+        <b>SST Anomaly</b><br>
+        <span style="color:{DIM};">Calculated from SST observations and climatological baselines</span>
+      </div>
+
+      <div style="color:{AMBER};font-size:11px;font-weight:700;letter-spacing:.06em;
+                  text-transform:uppercase;margin-bottom:8px;">⚙ Prototype Models</div>
+      <div style="color:{LIGHT};font-size:13px;line-height:1.8;margin-bottom:16px;">
+        <b>Nutrient Load Index</b><br>
+        <span style="color:{DIM};">Environmental proxy model based on seasonal patterns</span><br><br>
+        <b>Chlorophyll-a Concentration</b><br>
+        <span style="color:{DIM};">Ocean-colour integration currently in development</span><br><br>
+        <b>HAB Risk Score & Forecast</b><br>
+        <span style="color:{DIM};">Prototype forecasting engine combining SST and environmental indicators</span>
+      </div>
+
+      <div style="color:{RED};font-size:11px;font-weight:700;letter-spacing:.06em;
+                  text-transform:uppercase;margin-bottom:8px;">🔧 Product Roadmap</div>
+      <div style="color:{LIGHT};font-size:13px;line-height:1.8;margin-bottom:16px;">
+        <b>IoT Sensor Networks</b><br>
+        <span style="color:{DIM};">In-situ environmental monitoring integration planned</span><br><br>
+        <b>Wind & Current Anomalies</b><br>
+        <span style="color:{DIM};">Oceanographic and meteorological data integration planned</span><br><br>
+        <b>Machine Learning Forecasting</b><br>
+        <span style="color:{DIM};">Advanced predictive models currently under development</span>
+      </div>
+
+      <div style="color:{DIM};font-size:11px;border-top:1px solid {TEAL2};padding-top:10px;">
+        Updated: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC
+      </div>
+    </div>""", unsafe_allow_html=True)
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(f'<div style="padding:8px 0 16px;"><div style="font-size:20px;font-weight:700;color:{WHITE};">🌍 ExplainEarth</div><div style="font-size:11px;color:{DIM};letter-spacing:.06em;">ENVIRONMENTAL DECISION INTELLIGENCE</div></div>', unsafe_allow_html=True)
+
     st.markdown(f'<div class="shdr">Navigation</div>', unsafe_allow_html=True)
-    page = st.radio("", ["Overview","HAB Risk Monitor","Forecast","Recommendations","About"], label_visibility="collapsed")
+    page = st.radio("", [
+        "Overview", "Risk Intelligence", "Forecast", "Recommendations", "About"
+    ], label_visibility="collapsed")
+
     st.markdown(f'<div class="shdr" style="margin-top:20px;">Site Selection</div>', unsafe_allow_html=True)
     selected_site = st.selectbox("Site", list(SITES.keys()), label_visibility="collapsed")
     site = SITES[selected_site]
-    st.markdown(f'<div class="shdr" style="margin-top:20px;">Data Status</div>', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div style="background:#0a1f16;border:1px solid {TEAL2};border-radius:6px;padding:10px 12px;margin-bottom:10px;">
-      <div style="color:{TEAL};font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Early Product Prototype — v0.1</div>
-      <div style="color:{DIM};font-size:11px;line-height:1.5;margin-bottom:10px;">We believe in transparency. The platform clearly distinguishes between live data, prototype models, and planned integrations.</div>
 
-      <div style="color:{TEAL};font-size:10px;font-weight:700;margin-bottom:4px;">✅ LIVE DATA</div>
-      <div style="color:{LIGHT};font-size:11px;line-height:1.65;margin-bottom:10px;">
-        · <b>Sea Surface Temperature (SST)</b><br><span style="color:{DIM};">&nbsp;&nbsp;Near-real-time Copernicus satellite data</span><br>
-        · <b>SST Anomaly</b><br><span style="color:{DIM};">&nbsp;&nbsp;Calculated from SST observations and climatological baselines</span>
-      </div>
+    st.markdown('<div style="margin-top:20px;"></div>', unsafe_allow_html=True)
+    # ── Instruction 1: replace sidebar data block with a button ──
+    if st.button("📋 View Data & Model Status", use_container_width=True):
+        st.session_state["show_platform_status"] = not st.session_state.get("show_platform_status", False)
 
-      <div style="color:{AMBER};font-size:10px;font-weight:700;margin-bottom:4px;">⚙ PROTOTYPE MODELS</div>
-      <div style="color:{LIGHT};font-size:11px;line-height:1.65;margin-bottom:10px;">
-        · <b>Nutrient Load Index</b><br><span style="color:{DIM};">&nbsp;&nbsp;Environmental proxy model based on seasonal patterns</span><br>
-        · <b>Chlorophyll-a Concentration</b><br><span style="color:{DIM};">&nbsp;&nbsp;Ocean-colour integration currently in development</span><br>
-        · <b>HAB Risk Score & Forecast</b><br><span style="color:{DIM};">&nbsp;&nbsp;Prototype forecasting engine combining SST and environmental indicators</span>
-      </div>
-
-      <div style="color:{RED};font-size:10px;font-weight:700;margin-bottom:4px;">🔧 PRODUCT ROADMAP</div>
-      <div style="color:{LIGHT};font-size:11px;line-height:1.65;margin-bottom:10px;">
-        · <b>IoT Sensor Networks</b><br><span style="color:{DIM};">&nbsp;&nbsp;In-situ environmental monitoring integration planned</span><br>
-        · <b>Wind & Current Anomalies</b><br><span style="color:{DIM};">&nbsp;&nbsp;Oceanographic and meteorological data integration planned</span><br>
-        · <b>Machine Learning Forecasting</b><br><span style="color:{DIM};">&nbsp;&nbsp;Advanced predictive models currently under development</span>
-      </div>
-
-      <div style="padding-top:8px;border-top:1px solid {TEAL2};color:{DIM};font-size:10px;">
-        Updated: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<p style="font-size:11px;color:{DIM};margin-top:10px;">Updated: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC<br>Sources: Copernicus · CMEMS · MET Norway</p>', unsafe_allow_html=True)
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def forecast_chart(s):
@@ -120,31 +146,31 @@ def forecast_chart(s):
                   annotation_text="Action threshold (60%)",annotation_font_color=RED,
                   annotation_font_size=11,annotation_position="top right")
     fig.add_trace(go.Scatter(x=weeks,y=probs,mode="lines+markers+text",
-        line=dict(color=TEAL,width=3),marker=dict(size=10,color=TEAL,line=dict(color=WHITE,width=2)),
-        text=[f"{p}%" for p in probs],textposition="top center",textfont=dict(color=WHITE,size=12),
+        line=dict(color=TEAL,width=3),
+        marker=dict(size=10,color=TEAL,line=dict(color=WHITE,width=2)),
+        text=[f"{p}%" for p in probs],textposition="top center",
+        textfont=dict(color=WHITE,size=12),
         fill="tozeroy",fillcolor="rgba(29,158,117,0.10)"))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor=CARD,font=dict(color=LIGHT,family="Arial"),
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor=CARD,
+        font=dict(color=LIGHT,family="Arial"),
         xaxis=dict(showgrid=False,color=DIM,linecolor=TEAL2),
-        yaxis=dict(showgrid=True,gridcolor="rgba(15,110,86,0.25)",color=DIM,range=[0,110],ticksuffix="%",linecolor=TEAL2),
+        yaxis=dict(showgrid=True,gridcolor="rgba(15,110,86,0.25)",
+                   color=DIM,range=[0,110],ticksuffix="%",linecolor=TEAL2),
         margin=dict(l=40,r=20,t=20,b=40),height=300,showlegend=False)
     return fig
 
 def make_sst_overlay():
-    """Generate raster SST image from real or simulated data."""
     lats_arr, lons_arr, sst_2d = get_sst_grid_for_map()
     H, W = 300, 300
-    from scipy.ndimage import zoom
     if sst_2d.shape != (H, W):
-        zy = H / sst_2d.shape[0]
-        zx = W / sst_2d.shape[1]
         try:
-            from scipy.ndimage import zoom as scipy_zoom
-            sst_2d = scipy_zoom(sst_2d, (zy, zx), order=1)
+            from scipy.ndimage import zoom
+            zy = H / sst_2d.shape[0]; zx = W / sst_2d.shape[1]
+            sst_2d = zoom(sst_2d, (zy, zx), order=1)
         except Exception:
             sst_2d = np.array(Image.fromarray(sst_2d.astype(np.float32)).resize((W, H)))
-
     t  = np.clip((sst_2d - 9.5) / 5.5, 0, 1)
-    c0 = np.array([5,35,20,0],   dtype=float)
+    c0 = np.array([5,35,20,0],    dtype=float)
     c1 = np.array([15,110,86,160],dtype=float)
     c2 = np.array([224,154,63,210],dtype=float)
     c3 = np.array([224,122,95,230],dtype=float)
@@ -162,20 +188,32 @@ def overview_map():
     m=folium.Map(location=[60.5,6.0],zoom_start=7,tiles="CartoDB dark_matter",prefer_canvas=True)
     for name,s in SITES.items():
         short=name.split("—")[1].strip(); hc=rcol(s["risk_level"])
-        popup_html=f'<div style="font-family:Arial;min-width:170px;background:#0f2a1e;padding:10px;border-radius:6px;border:1px solid #0F6E56;"><b style="color:#f0faf6;">{short}</b><br><span style="color:{hc};font-size:18px;font-weight:700;">{s["risk"]}%</span><span style="color:#7ec8a4;font-size:12px;"> HAB risk</span><br><span style="color:#c5e8d8;font-size:12px;">Risk: {s["risk_level"]}<br>SST: {s["sst"]}°C ({s["sst_trend"]})<br>Chlorophyll: {s["chlorophyll"]} μg/L<br>Biomass: {s["fish_tonnes"]}t<br>Source: {s["data_source"]}</span></div>'
+        popup_html=(f'<div style="font-family:Arial;min-width:170px;background:#0f2a1e;'
+                    f'padding:10px;border-radius:6px;border:1px solid #0F6E56;">'
+                    f'<b style="color:#f0faf6;">{short}</b><br>'
+                    f'<span style="color:{hc};font-size:18px;font-weight:700;">{s["risk"]}%</span>'
+                    f'<span style="color:#7ec8a4;font-size:12px;"> HAB risk</span><br>'
+                    f'<span style="color:#c5e8d8;font-size:12px;">Risk: {s["risk_level"]}<br>'
+                    f'SST: {s["sst"]}°C ({s["sst_trend"]})<br>'
+                    f'Chlorophyll: {s["chlorophyll"]} μg/L<br>'
+                    f'Biomass: {s["fish_tonnes"]}t</span></div>')
         folium.CircleMarker(location=[s["lat"],s["lon"]],radius=10+s["risk"]//12,
             color=hc,fill=True,fill_color=hc,fill_opacity=0.85,weight=2,
             popup=folium.Popup(popup_html,max_width=220),
             tooltip=f"{short} — {s['risk_level']} ({s['risk']}%)").add_to(m)
         folium.Marker(location=[s["lat"]+0.07,s["lon"]+0.1],
-            icon=folium.DivIcon(html=f'<div style="color:{hc};font-weight:700;font-size:12px;font-family:Arial;white-space:nowrap;text-shadow:1px 1px 2px #000;">{short}<br>{s["risk"]}%</div>',
-            icon_size=(130,32),icon_anchor=(0,0))).add_to(m)
+            icon=folium.DivIcon(
+                html=(f'<div style="color:{hc};font-weight:700;font-size:12px;font-family:Arial;'
+                      f'white-space:nowrap;text-shadow:1px 1px 2px #000;">'
+                      f'{short}<br>{s["risk"]}%</div>'),
+                icon_size=(130,32),icon_anchor=(0,0))).add_to(m)
     return m
 
 def sst_map(selected):
     img_url = make_sst_overlay()
     m=folium.Map(location=[60.5,6.0],zoom_start=7,tiles="CartoDB dark_matter",prefer_canvas=True)
-    folium.raster_layers.ImageOverlay(image=img_url,bounds=[[58.3,4.5],[63.3,8.8]],
+    folium.raster_layers.ImageOverlay(image=img_url,
+        bounds=[[58.3,4.5],[63.3,8.8]],
         opacity=0.70,interactive=False,cross_origin=False,zindex=1).add_to(m)
     for name,s in SITES.items():
         short=name.split("—")[1].strip(); hc=rcol(s["risk_level"]); sel=(name==selected)
@@ -183,113 +221,175 @@ def sst_map(selected):
             color=WHITE,fill=True,fill_color=hc,fill_opacity=1.0,weight=3 if sel else 1,
             tooltip=f"{short} — SST {s['sst']}°C · HAB {s['risk']}%").add_to(m)
         folium.Marker(location=[s["lat"]+0.07,s["lon"]+0.1],
-            icon=folium.DivIcon(html=f'<div style="color:#f0faf6;font-size:11px;font-family:Arial;font-weight:700;white-space:nowrap;text-shadow:1px 1px 2px #000;">{short}<br><span style="color:{hc};">{s["sst"]}°C</span></div>',
-            icon_size=(130,32),icon_anchor=(0,0))).add_to(m)
+            icon=folium.DivIcon(
+                html=(f'<div style="color:#f0faf6;font-size:11px;font-family:Arial;'
+                      f'font-weight:700;white-space:nowrap;text-shadow:1px 1px 2px #000;">'
+                      f'{short}<br><span style="color:{hc};">{s["sst"]}°C</span></div>'),
+                icon_size=(130,32),icon_anchor=(0,0))).add_to(m)
     return m
 
+# ── PLATFORM STATUS — shown in main area when button toggled ─────────────────
+if st.session_state.get("show_platform_status", False):
+    platform_status_block()
+    st.markdown("---")
+
 # ── OVERVIEW ──────────────────────────────────────────────────────────────────
-if page=="Overview":
-    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">Norwegian Coastline — Risk Overview</h1>',unsafe_allow_html=True)
-    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">Environmental decision intelligence · {datetime.now().strftime("%d %B %Y, %H:%M")} UTC · <span class="src-badge">{src_label}</span></p>',unsafe_allow_html=True)
+if page == "Overview":
+    # Instruction 5: new title + subtitle
+    st.markdown(f'<h1 style="font-size:26px;margin-bottom:2px;">ExplainEarth Decision Intelligence Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">Aquaculture Pilot — Norwegian Coast &nbsp;·&nbsp; {datetime.now().strftime("%d %B %Y, %H:%M")} UTC</p>', unsafe_allow_html=True)
+
     for name,s in SITES.items():
         if s["risk_level"] in ("CRITICAL","HIGH"):
             hc=rcol(s["risk_level"]); lb=name.split("—")[1].strip()
             cls="red" if s["risk_level"]=="CRITICAL" else "amber"
-            st.markdown(f'<div class="alert-{cls}"><strong style="color:{hc};">⚠ {s["risk_level"]} — {lb}</strong><span style="color:{LIGHT};font-size:13px;margin-left:12px;">HAB probability {s["risk"]}% · Action required within 4 weeks</span></div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="alert-{cls}"><strong style="color:{hc};">⚠ {s["risk_level"]} — {lb}</strong><span style="color:{LIGHT};font-size:13px;margin-left:12px;">HAB probability {s["risk"]}% · Action required within 4 weeks</span></div>', unsafe_allow_html=True)
+
     c1,c2,c3,c4=st.columns(4)
     with c1: st.metric("Sites monitored","4","Norwegian coast")
     with c2: st.metric("Critical alerts",str(sum(1 for s in SITES.values() if s["risk_level"]=="CRITICAL")),"active")
     with c3: st.metric("High risk sites",str(sum(1 for s in SITES.values() if s["risk_level"] in ("CRITICAL","HIGH"))),"require attention")
     with c4: st.metric("Biomass at risk",f"{sum(s['fish_tonnes'] for s in SITES.values() if s['risk_level'] in ('CRITICAL','HIGH'))}t","at elevated risk")
-    st.markdown("<br>",unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
     cm,cl=st.columns([1.6,1])
     with cm:
-        st.markdown(f'<div class="shdr">Site Risk Map — click a marker for details</div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="shdr">Site Risk Map — click a marker for details</div>', unsafe_allow_html=True)
         st_folium(overview_map(),width=None,height=420,returned_objects=[])
     with cl:
-        st.markdown(f'<div class="shdr">All Sites — Risk Summary</div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="shdr">All Sites — Risk Summary</div>', unsafe_allow_html=True)
         for name,s in SITES.items():
             short=name.split("—")[1].strip(); hc=rcol(s["risk_level"])
-            st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-left:4px solid {hc};border-radius:6px;padding:10px 14px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;"><span style="color:{WHITE};font-weight:600;font-size:13px;">{short}</span><span style="color:{hc};font-size:14px;font-weight:700;">{s["risk"]}%</span></div><div style="color:{DIM};font-size:11px;margin-top:3px;">SST {s["sst"]}°C · {s["sst_trend"]} · {s["risk_level"]}</div></div>',unsafe_allow_html=True)
+            st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-left:4px solid {hc};border-radius:6px;padding:10px 14px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;"><span style="color:{WHITE};font-weight:600;font-size:13px;">{short}</span><span style="color:{hc};font-size:14px;font-weight:700;">{s["risk"]}%</span></div><div style="color:{DIM};font-size:11px;margin-top:3px;">SST {s["sst"]}°C · {s["sst_trend"]} · {s["risk_level"]}</div></div>', unsafe_allow_html=True)
 
-# ── HAB RISK MONITOR ──────────────────────────────────────────────────────────
-elif page=="HAB Risk Monitor":
+# ── RISK INTELLIGENCE (was HAB Risk Monitor) ──────────────────────────────────
+elif page == "Risk Intelligence":
     short=selected_site.split("—")[1].strip()
-    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">HAB Risk Monitor — {short}</h1>',unsafe_allow_html=True)
-    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">Harmful algal bloom probability · ExplainEarth AI model · {datetime.now().strftime("%H:%M")} UTC · <span class="src-badge">{src_label}</span></p>',unsafe_allow_html=True)
+    # Instruction 6: renamed page title
+    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">Risk Intelligence — HAB Early Warning</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">Harmful algal bloom forecast · {short} · {datetime.now().strftime("%H:%M")} UTC <span class="proto-badge">Prototype model</span></p>', unsafe_allow_html=True)
+
     hc=rcol(site["risk_level"]); cls={"CRITICAL":"red","HIGH":"amber","MEDIUM":"amber","LOW":"green"}[site["risk_level"]]
-    st.markdown(f'<div class="alert-{cls}" style="display:flex;align-items:center;gap:24px;padding:18px 24px;"><div style="font-size:52px;font-weight:800;color:{hc};line-height:1;">{site["risk"]}%</div><div><div style="color:{hc};font-size:18px;font-weight:700;">HAB Alert — {short}</div><div style="color:{LIGHT};font-size:13px;margin-top:4px;">Harmful algal bloom probability · {site["risk_level"]} · Action required within 4 weeks</div></div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="shdr" style="margin-top:18px;">Environmental Signals</div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="alert-{cls}" style="display:flex;align-items:center;gap:24px;padding:18px 24px;"><div style="font-size:52px;font-weight:800;color:{hc};line-height:1;">{site["risk"]}%</div><div><div style="color:{hc};font-size:18px;font-weight:700;">HAB Alert — {short}</div><div style="color:{LIGHT};font-size:13px;margin-top:4px;">Harmful algal bloom probability · {site["risk_level"]} · Action required within 4 weeks</div></div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="shdr" style="margin-top:18px;">Environmental Signals</div>', unsafe_allow_html=True)
     c1,c2,c3,c4=st.columns(4)
     with c1: st.metric("Sea surface temp",f"{site['sst']}°C",site["sst_trend"])
     with c2: st.metric("Nutrient load",f"{site['nutrient']}","above threshold" if site["nutrient"]>0.5 else "normal")
     with c3: st.metric("Chlorophyll-a",f"{site['chlorophyll']} μg/L","elevated" if site["chlorophyll"]>3 else "normal")
     with c4: st.metric("Current anomaly",site["current"],"transport risk" if site["risk"]>50 else "low")
-    st.markdown(f'<div class="shdr" style="margin-top:18px;">Signal Detection Chain</div>',unsafe_allow_html=True)
+
+    st.markdown(f'<div class="shdr" style="margin-top:18px;">Signal Detection Chain</div>', unsafe_allow_html=True)
     cols=st.columns(4)
-    for co,(icon,label,val) in zip(cols,[("🌡","SST rising",site["sst_trend"]),("🧪","Nutrient load",f"Index {site['nutrient']}"),("💨","Wind",site["wind"]),("🌊","Current",site["current"])]):
-        with co: st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:6px;padding:12px;text-align:center;"><div style="font-size:26px;">{icon}</div><div style="color:{WHITE};font-size:12px;font-weight:600;margin-top:4px;">{label}</div><div style="color:{DIM};font-size:11px;margin-top:2px;">{val}</div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="shdr" style="margin-top:18px;">Sea Surface Temperature — Norwegian Coast</div>',unsafe_allow_html=True)
+    for co,(icon,label,val) in zip(cols,[
+        ("🌡","SST rising",site["sst_trend"]),
+        ("🧪","Nutrient load",f"Index {site['nutrient']}"),
+        ("💨","Wind",site["wind"]),
+        ("🌊","Current",site["current"]),
+    ]):
+        with co:
+            st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:6px;padding:12px;text-align:center;"><div style="font-size:26px;">{icon}</div><div style="color:{WHITE};font-size:12px;font-weight:600;margin-top:4px;">{label}</div><div style="color:{DIM};font-size:11px;margin-top:2px;">{val}</div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="shdr" style="margin-top:18px;">Sea Surface Temperature — Norwegian Coast</div>', unsafe_allow_html=True)
     st.caption("Teal = normal SST · Amber/Red = warm anomaly · Site markers show HAB risk level")
     st_folium(sst_map(selected_site),width=None,height=420,returned_objects=[])
 
 # ── FORECAST ──────────────────────────────────────────────────────────────────
-elif page=="Forecast":
+elif page == "Forecast":
     short=selected_site.split("—")[1].strip()
-    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">4-Week HAB Forecast — {short}</h1>',unsafe_allow_html=True)
-    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">ExplainEarth predictive model · AccEARTH GeoAI · Confidence 85% · <span class="src-badge">{src_label}</span></p>',unsafe_allow_html=True)
+    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">4-Week HAB Forecast — {short}</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">ExplainEarth predictive model · AccEARTH GeoAI · Confidence 85% <span class="proto-badge">Prototype model</span></p>', unsafe_allow_html=True)
+
     cc,cs=st.columns([2,1])
     with cc:
-        st.markdown(f'<div class="shdr">Probability Forecast</div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="shdr">Probability Forecast</div>', unsafe_allow_html=True)
         st.plotly_chart(forecast_chart(site),use_container_width=True,config={"displayModeBar":False})
     with cs:
-        st.markdown(f'<div class="shdr">Week by Week</div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="shdr">Week by Week</div>', unsafe_allow_html=True)
         for w,p in zip(["Now","Week 1","Week 2","Week 3","Week 4"],site["weeks"]):
             c=RED if p>=60 else AMBER if p>=40 else TEAL
-            st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:5px;padding:9px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;"><span style="color:{LIGHT};font-size:13px;">{w}</span><span style="color:{c};font-weight:700;font-size:15px;">{p}%</span></div>',unsafe_allow_html=True)
+            st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:5px;padding:9px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;"><span style="color:{LIGHT};font-size:13px;">{w}</span><span style="color:{c};font-weight:700;font-size:15px;">{p}%</span></div>', unsafe_allow_html=True)
         exp=site["fish_tonnes"]*4800/1000
-        st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:6px;padding:14px;margin-top:12px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Financial exposure</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€{exp:.1f}M</div><div style="color:{DIM};font-size:11px;margin-top:2px;">{site["fish_tonnes"]}t biomass · €4,800/t avg value</div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="shdr" style="margin-top:18px;">Model Input Variables</div>',unsafe_allow_html=True)
+        st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:6px;padding:14px;margin-top:12px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Financial exposure</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€{exp:.1f}M</div><div style="color:{DIM};font-size:11px;margin-top:2px;">{site["fish_tonnes"]}t biomass · €4,800/t avg value</div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="shdr" style="margin-top:18px;">Model Input Variables</div>', unsafe_allow_html=True)
     st.dataframe(pd.DataFrame({
         "Variable":["Sea Surface Temperature","Nutrient Load","Chlorophyll-a","Wind Speed","Current Velocity","Historical HAB frequency"],
         "Value":[f"{site['sst']}°C",str(site['nutrient']),f"{site['chlorophyll']} μg/L",site['wind'],site['current'],"4 events / 10 years"],
         "Status":["⚠ Elevated" if site['sst']>12 else "✓ Normal","⚠ High" if site['nutrient']>0.5 else "✓ Normal","⚠ Elevated" if site['chlorophyll']>3 else "✓ Normal","⚠ Active" if site['risk']>50 else "✓ Calm","⚠ Anomaly" if site['risk']>50 else "✓ Normal","⚠ Moderate" if site['risk']>40 else "✓ Low"],
-        "Source":[site["data_source"],"Simulated","Simulated","MET Norway","CMEMS","Historical"],
+        "Source":[site["data_source"],"Prototype model","Prototype model","MET Norway","CMEMS","Historical"],
         "Weight":["28%","24%","18%","14%","10%","6%"],
     }),use_container_width=True,hide_index=True)
 
 # ── RECOMMENDATIONS ───────────────────────────────────────────────────────────
-elif page=="Recommendations":
+elif page == "Recommendations":
     short=selected_site.split("—")[1].strip()
-    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">Decision Recommendations — {short}</h1>',unsafe_allow_html=True)
-    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">ExplainEarth Decision Intelligence · {site["risk"]}% HAB probability · <span class="src-badge">{src_label}</span></p>',unsafe_allow_html=True)
+    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">Priority Decisions — {short}</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">ExplainEarth Decision Intelligence · {site["risk"]}% HAB probability · Implementation window: 72 hours</p>', unsafe_allow_html=True)
+
     sav=site["fish_tonnes"]*4800/1000
-    st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:8px;padding:18px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;"><div><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Estimated financial exposure</div><div style="color:{WHITE};font-size:30px;font-weight:700;margin-top:4px;">€{sav:.1f}M</div><div style="color:{DIM};font-size:12px;margin-top:2px;">{site["fish_tonnes"]}t biomass · {site["risk"]}% probability · 4-week window</div></div><div style="text-align:right;"><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">ExplainEarth subscription</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€50–200K/yr</div><div style="color:{DIM};font-size:12px;margin-top:2px;">Payback: first alert</div></div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="shdr">Priority Actions — implement within 72 hours</div>',unsafe_allow_html=True)
+    # Instruction 10: reinforce decision intelligence language
+    st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:8px;padding:18px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;"><div><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Financial exposure</div><div style="color:{WHITE};font-size:30px;font-weight:700;margin-top:4px;">€{sav:.1f}M</div><div style="color:{DIM};font-size:12px;margin-top:2px;">{site["fish_tonnes"]}t biomass · {site["risk"]}% probability · 4-week implementation window</div></div><div style="text-align:right;"><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Resource protection</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€50–200K/yr</div><div style="color:{DIM};font-size:12px;margin-top:2px;">ExplainEarth subscription · Payback: first alert</div></div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="shdr">Recommended Actions — implementation window: 72 hours</div>', unsafe_allow_html=True)
     for icon,title,body in [
-        ("🚢","Move cages to lower-risk zone",f"Relocate biomass to Site 7 — Sognefjord (28% HAB risk). Cost: €80–120K. Loss avoided: €1.8–3.2M."),
-        ("📉","Reduce stocking density immediately","Lower biomass per cage by 30% to reduce environmental stress. Begin within 72 hours."),
-        ("⏩","Accelerate harvest schedule",f"Bring forward harvest of {int(site['fish_tonnes']*0.4)}t mature stock. Reduces exposure by ~€{site['fish_tonnes']*0.4*4800/1000:.1f}M."),
+        ("🚢","Move cages to lower-risk zone", f"Relocate biomass to Site 7 — Sognefjord (28% HAB risk). Cost: €80–120K. Loss avoided: €1.8–3.2M."),
+        ("📉","Reduce stocking density",        "Lower biomass per cage by 30% to reduce environmental stress and mortality risk."),
+        ("⏩","Accelerate harvest schedule",     f"Bring forward harvest of {int(site['fish_tonnes']*0.4)}t mature stock. Reduces financial exposure by ~€{site['fish_tonnes']*0.4*4800/1000:.1f}M."),
     ]:
-        st.markdown(f'<div class="rec"><div style="color:{TEAL};font-weight:600;font-size:14px;margin-bottom:4px;">{icon} {title}</div><div style="color:{LIGHT};font-size:13px;">{body}</div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="shdr" style="margin-top:18px;">Monitoring Actions</div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="rec"><div style="color:{TEAL};font-weight:600;font-size:14px;margin-bottom:4px;">{icon} {title}</div><div style="color:{LIGHT};font-size:13px;">{body}</div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="shdr" style="margin-top:18px;">Monitoring Actions</div>', unsafe_allow_html=True)
     for icon,title,body in [
-        ("📡","Increase sensor frequency","Deploy additional IoT sensors. Increase Copernicus SST pull to 6-hour intervals."),
-        ("📋","Notify regulatory authority","Submit early-warning report to Fiskeridirektoratet within 48 hours."),
+        ("📡","Increase sensor frequency",    "Deploy additional IoT sensors. Increase Copernicus SST pull to 6-hour intervals."),
+        ("📋","Notify regulatory authority",  "Submit early-warning report to Fiskeridirektoratet within 48 hours."),
     ]:
-        st.markdown(f'<div class="rec" style="border-left-color:{DIM};"><div style="color:{DIM};font-weight:600;font-size:14px;margin-bottom:4px;">{icon} {title}</div><div style="color:{LIGHT};font-size:13px;">{body}</div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:16px 20px;margin-top:18px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Dual Mission — SDG Alignment</div><p style="color:{LIGHT};font-size:13px;margin:0;">When ExplainEarth prevents this event, it is not just <strong style="color:{WHITE};">€{sav:.1f}M</strong> recovered. It is <strong style="color:{TEAL};">{site["fish_tonnes"]}t of food</strong>, ocean biomass, and years of natural growth returned to people and planet.</p><p style="color:{DIM};font-size:12px;margin:8px 0 0;">SDG 2 Zero Hunger · SDG 12 Responsible Consumption · SDG 13 Climate Action · SDG 14 Life Below Water</p></div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="rec" style="border-left-color:{DIM};"><div style="color:{DIM};font-weight:600;font-size:14px;margin-bottom:4px;">{icon} {title}</div><div style="color:{LIGHT};font-size:13px;">{body}</div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:16px 20px;margin-top:18px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Dual Mission — Resource Protection & SDG Alignment</div><p style="color:{LIGHT};font-size:13px;margin:0;">When ExplainEarth prevents this event, it is not just <strong style="color:{WHITE};">€{sav:.1f}M</strong> recovered. It is <strong style="color:{TEAL};">{site["fish_tonnes"]}t of food</strong>, ocean biomass, and years of natural growth returned to people and planet.</p><p style="color:{DIM};font-size:12px;margin:8px 0 0;">SDG 2 Zero Hunger · SDG 12 Responsible Consumption · SDG 13 Climate Action · SDG 14 Life Below Water</p></div>', unsafe_allow_html=True)
 
 # ── ABOUT ─────────────────────────────────────────────────────────────────────
-elif page=="About":
-    st.markdown(f'<h1 style="font-size:26px;margin-bottom:20px;">About ExplainEarth</h1>',unsafe_allow_html=True)
+elif page == "About":
+    st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">About ExplainEarth</h1>', unsafe_allow_html=True)
+    # Instruction 7: positioning sentence
+    st.markdown(f'<p style="color:{LIGHT};font-size:16px;font-style:italic;margin-bottom:24px;">ExplainEarth transforms environmental data into actionable decisions.</p>', unsafe_allow_html=True)
+
     c1,c2=st.columns(2)
     with c1:
-        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;margin-bottom:16px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">Our Mission</div><p style="color:{LIGHT};font-size:14px;line-height:1.7;margin:0;">ExplainEarth is an AI-powered <strong style="color:{WHITE};">Environmental Decision Intelligence Platform</strong> with a dual mission: protect the financial value of industries — and preserve the physical resources behind that value. When a €200M aquaculture loss is avoided, it is not just money recovered. It is food, ocean biomass, and years of natural growth returned to people and planet.</p></div>',unsafe_allow_html=True)
-        layers="".join([f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;"><div style="background:{TEAL};color:{BG};font-weight:700;font-size:12px;border-radius:4px;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;">{n}</div><div><div style="color:{WHITE};font-size:13px;font-weight:600;">{t}</div><div style="color:{DIM};font-size:11px;">{s}</div></div></div>' for n,t,s in [("4","Decision Intelligence","What to do — actionable recommendations"),("3","Future Intelligence","What will happen — 4-week forecast"),("2","GeoAI","Why it is happening — environmental risk models"),("1","Earth Intelligence","What is happening — real-time Earth data")]])
-        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;">Four Intelligence Layers</div>{layers}</div>',unsafe_allow_html=True)
+        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;margin-bottom:16px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">Our Mission</div><p style="color:{LIGHT};font-size:14px;line-height:1.7;margin:0;">ExplainEarth is an AI-powered <strong style="color:{WHITE};">Environmental Decision Intelligence Platform</strong> with a dual mission: protect the financial value of industries — and preserve the physical resources behind that value. When a €200M aquaculture loss is avoided, it is not just money recovered. It is food, ocean biomass, and years of natural growth returned to people and planet.</p></div>', unsafe_allow_html=True)
+
+        # Instruction 8: more prominent four-layer framework with questions
+        layers="".join([f'<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;"><div style="background:{TEAL};color:{BG};font-weight:700;font-size:12px;border-radius:4px;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;margin-top:2px;">{n}</div><div><div style="color:{WHITE};font-size:13px;font-weight:600;">{t}</div><div style="color:{TEAL};font-size:12px;font-style:italic;margin-top:1px;">{q}</div><div style="color:{DIM};font-size:11px;margin-top:1px;">{s}</div></div></div>' for n,t,q,s in [
+            ("4","Decision Intelligence","What should we do?","Actionable recommendations for operators"),
+            ("3","Future Intelligence","What will happen next?","4-week forecasting and scenario modelling"),
+            ("2","GeoAI","Why is it happening?","Environmental and geoscience risk models"),
+            ("1","Earth Intelligence","What is happening?","Real-time satellite and sensor data"),
+        ]])
+        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px;">Four Intelligence Layers</div>{layers}</div>', unsafe_allow_html=True)
+
     with c2:
-        ds="".join([f'<div style="background:{CARD2};border-radius:4px;padding:8px 12px;margin-bottom:6px;color:{LIGHT};font-size:13px;">{d}</div>' for d in ["🛰 Copernicus Marine Service (CMEMS) — Live NRT SST","🛰 ESA Sentinel Earth Observation","🌊 NOAA Ocean Data","🌤 MET Norway Weather API","📡 IoT Sensor Networks (in development)"]])
-        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;margin-bottom:16px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;">Live Data Stack</div>{ds}</div>',unsafe_allow_html=True)
-        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;">Founder</div><div style="color:{WHITE};font-size:15px;font-weight:600;">Dr. Tamer Abu-Alam</div><div style="color:{TEAL};font-size:12px;margin-bottom:10px;">Founder, ExplainEarth (in formation)</div><div style="color:{DIM};font-size:12px;line-height:1.65;">25+ years Earth science · AI & sustainability analytics · €28M+ innovation portfolio · 65+ peer-reviewed papers · CloudEARTHi — 50+ organisations, 13 countries</div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:8px;padding:16px 24px;margin-top:16px;text-align:center;"><span style="color:{TEAL};font-style:italic;font-size:15px;font-weight:500;">"The Earth is already sending the signals. ExplainEarth will make them actionable."</span></div>',unsafe_allow_html=True)
+        ds="".join([f'<div style="background:{CARD2};border-radius:4px;padding:8px 12px;margin-bottom:6px;color:{LIGHT};font-size:13px;">{d}</div>' for d in [
+            "🛰 Copernicus Marine Service (CMEMS) — Live NRT SST",
+            "🛰 ESA Sentinel Earth Observation",
+            "🌊 NOAA Ocean Data",
+            "🌤 MET Norway Weather API",
+            "📡 IoT Sensor Networks (roadmap)",
+        ]])
+        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;margin-bottom:16px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;">Data Stack</div>{ds}</div>', unsafe_allow_html=True)
+
+        # Instruction 9: Future Applications section
+        apps="".join([f'<div style="color:{LIGHT};font-size:12px;padding:5px 0;border-bottom:.5px solid {TEAL2}22;">{"✅" if i==0 else "→"} {a}</div>' for i,a in enumerate([
+            "Harmful algal blooms — current pilot",
+            "Water quality monitoring",
+            "Aquaculture operations",
+            "Ports and coastal infrastructure",
+            "Offshore energy",
+            "Marine spatial planning",
+            "Environmental compliance",
+            "Climate adaptation",
+        ])])
+        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;margin-bottom:16px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;">Future Applications</div>{apps}</div>', unsafe_allow_html=True)
+
+        st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:20px 24px;"><div style="color:{TEAL};font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;">Founder</div><div style="color:{WHITE};font-size:15px;font-weight:600;">Dr. Tamer Abu-Alam</div><div style="color:{TEAL};font-size:12px;margin-bottom:10px;">Founder, ExplainEarth (in formation)</div><div style="color:{DIM};font-size:12px;line-height:1.65;">25+ years Earth science · AI & sustainability analytics · €28M+ innovation portfolio · 65+ peer-reviewed papers · CloudEARTHi — 50+ organisations, 13 countries</div></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:8px;padding:16px 24px;margin-top:16px;text-align:center;"><span style="color:{TEAL};font-style:italic;font-size:15px;font-weight:500;">"The Earth is already sending the signals. ExplainEarth will make them actionable."</span></div>', unsafe_allow_html=True)
