@@ -101,8 +101,30 @@ def sst_map(selected):
                 +rng.normal(0,0.08))
             w=max(0,min(1,(val-9.5)/5.5))
             if w>0.04: heat.append([la,lo,w])
-    HeatMap(heat,min_opacity=0.35,max_opacity=0.85,radius=20,blur=22,
-        gradient={"0.0":"#0a3a5a","0.3":"#0F6E56","0.65":"#e09a3f","1.0":"#e07a5f"}).add_to(m)
+    # Build heatmap — no legend rectangle
+    hm = HeatMap(
+        heat,
+        min_opacity=0.25,
+        max_opacity=0.72,
+        radius=22,
+        blur=26,
+        gradient={
+            "0.0": "#053520",
+            "0.3": "#0F6E56",
+            "0.6": "#e09a3f",
+            "1.0": "#e07a5f",
+        },
+    )
+    hm.add_to(m)
+    # Inject CSS to hide the auto-generated legend box folium creates
+    legend_css = """
+    <style>
+    .leaflet-control-attribution { display: none !important; }
+    div.info.legend { display: none !important; }
+    .leaflet-bottom.leaflet-right .info { display: none !important; }
+    </style>
+    """
+    m.get_root().header.add_child(folium.Element(legend_css))
     for name,s in SITES.items():
         short=name.split("—")[1].strip(); hc=rcol(s["risk_level"]); sel=(name==selected)
         folium.CircleMarker(location=[s["lat"],s["lon"]],radius=11 if sel else 8,
