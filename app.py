@@ -186,7 +186,7 @@ def forecast_chart(site):
         textposition="top center",
         textfont=dict(color=WHITE, size=12),
         fill="tozeroy",
-        fillcolor=f"{TEAL}18",
+        fillcolor="rgba(29,158,117,0.09)",
         name="HAB probability",
     ))
     fig.update_layout(
@@ -194,7 +194,7 @@ def forecast_chart(site):
         plot_bgcolor=CARD,
         font=dict(color=LIGHT, family="Arial"),
         xaxis=dict(showgrid=False, color=DIM, linecolor=TEAL2),
-        yaxis=dict(showgrid=True, gridcolor=TEAL2+"44", color=DIM,
+        yaxis=dict(showgrid=True, gridcolor="rgba(15,110,86,0.27)", color=DIM,
                    range=[0, 105], ticksuffix="%", linecolor=TEAL2),
         margin=dict(l=40, r=20, t=20, b=40),
         height=280,
