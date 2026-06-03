@@ -3,7 +3,9 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import folium
-from folium.plugins import HeatMap
+import base64
+import io
+from PIL import Image
 from streamlit_folium import st_folium
 from datetime import datetime
 
@@ -90,50 +92,49 @@ def overview_map():
     return m
 
 def sst_map(selected):
-    m = folium.Map(location=[60.5,6.0],zoom_start=7,tiles="CartoDB dark_matter",prefer_canvas=True)
-    rng=np.random.RandomState(42); heat=[]
-    for la in np.linspace(58.4,63.2,70):
-        for lo in np.linspace(4.7,8.6,70):
-            val=(11.0
-                +2.5*np.exp(-((la-60.15)**2+(lo-6.35)**2)/1.0)
-                +2.0*np.exp(-((la-59.15)**2+(lo-5.65)**2)/0.7)
-                +0.9*np.exp(-((la-61.85)**2+(lo-5.55)**2)/0.5)
-                +rng.normal(0,0.08))
-            w=max(0,min(1,(val-9.5)/5.5))
-            if w>0.04: heat.append([la,lo,w])
-    # Build heatmap — no legend rectangle
-    hm = HeatMap(
-        heat,
-        min_opacity=0.25,
-        max_opacity=0.72,
-        radius=22,
-        blur=26,
-        gradient={
-            "0.0": "#053520",
-            "0.3": "#0F6E56",
-            "0.6": "#e09a3f",
-            "1.0": "#e07a5f",
-        },
-    )
-    hm.add_to(m)
-    # Inject CSS to hide the auto-generated legend box folium creates
-    legend_css = """
-    <style>
-    .leaflet-control-attribution { display: none !important; }
-    div.info.legend { display: none !important; }
-    .leaflet-bottom.leaflet-right .info { display: none !important; }
-    </style>
-    """
-    m.get_root().header.add_child(folium.Element(legend_css))
+    lat_min,lat_max,lon_min,lon_max = 58.3,63.3,4.5,8.8
+    H,W = 300,300
+    rng = np.random.RandomState(42)
+    lats = np.linspace(lat_max,lat_min,H)
+    lons = np.linspace(lon_min,lon_max,W)
+    lon_g,lat_g = np.meshgrid(lons,lats)
+    sst = (11.0
+        +2.6*np.exp(-((lat_g-60.15)**2+(lon_g-6.35)**2)/0.9)
+        +2.2*np.exp(-((lat_g-59.15)**2+(lon_g-5.65)**2)/0.6)
+        +1.0*np.exp(-((lat_g-61.85)**2+(lon_g-5.55)**2)/0.4)
+        +0.6*np.exp(-((lat_g-61.05)**2+(lon_g-6.10)**2)/0.5)
+        +rng.normal(0,0.08,lat_g.shape))
+    t = np.clip((sst-9.5)/5.5,0,1)
+    c0=np.array([5,35,20,0],dtype=float)
+    c1=np.array([15,110,86,160],dtype=float)
+    c2=np.array([224,154,63,210],dtype=float)
+    c3=np.array([224,122,95,230],dtype=float)
+    rgba=np.zeros((H,W,4),dtype=np.uint8)
+    def lerp(a,b,x): return np.clip(a+(b-a)*x[:,None],0,255).astype(np.uint8)
+    m0=t<0.35; m1=(t>=0.35)&(t<0.70); m2=t>=0.70
+    rgba[m0]=lerp(c0,c1,t[m0]/0.35)
+    rgba[m1]=lerp(c1,c2,(t[m1]-0.35)/0.35)
+    rgba[m2]=lerp(c2,c3,(t[m2]-0.70)/0.30)
+    img=Image.fromarray(rgba,mode="RGBA")
+    buf=io.BytesIO(); img.save(buf,format="PNG")
+    img_url="data:image/png;base64,"+base64.b64encode(buf.getvalue()).decode()
+    m=folium.Map(location=[60.5,6.0],zoom_start=7,tiles="CartoDB dark_matter",prefer_canvas=True)
+    folium.raster_layers.ImageOverlay(
+        image=img_url,
+        bounds=[[lat_min,lon_min],[lat_max,lon_max]],
+        opacity=0.70,interactive=False,cross_origin=False,zindex=1,
+    ).add_to(m)
     for name,s in SITES.items():
         short=name.split("—")[1].strip(); hc=rcol(s["risk_level"]); sel=(name==selected)
         folium.CircleMarker(location=[s["lat"],s["lon"]],radius=11 if sel else 8,
             color=WHITE,fill=True,fill_color=hc,fill_opacity=1.0,weight=3 if sel else 1,
-            tooltip=f"{short} — SST {s['sst']}°C · HAB {s['risk']}%").add_to(m)
+            tooltip=f"{short} — SST {s["sst"]}°C · HAB {s["risk"]}%").add_to(m)
         folium.Marker(location=[s["lat"]+0.07,s["lon"]+0.1],
-            icon=folium.DivIcon(html=f'<div style="color:#f0faf6;font-size:11px;font-family:Arial;font-weight:700;white-space:nowrap;text-shadow:1px 1px 2px #000;">{short}<br><span style="color:{hc};">{s["sst"]}°C</span></div>',
-            icon_size=(130,32),icon_anchor=(0,0))).add_to(m)
+            icon=folium.DivIcon(
+                html=f'<div style="color:#f0faf6;font-size:11px;font-family:Arial;font-weight:700;white-space:nowrap;text-shadow:1px 1px 2px #000;">{short}<br><span style="color:{hc};">{s["sst"]}°C</span></div>',
+                icon_size=(130,32),icon_anchor=(0,0))).add_to(m)
     return m
+
 
 # ── OVERVIEW ──────────────────────────────────────────────────────────────────
 if page=="Overview":
