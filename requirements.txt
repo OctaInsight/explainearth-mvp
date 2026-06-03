@@ -5,3 +5,6 @@ numpy
 folium
 streamlit-folium
 Pillow
+copernicusmarine
+xarray
+scipy
