@@ -205,73 +205,107 @@ def forecast_chart(site):
 def map_chart(selected):
     fig = go.Figure()
 
-    # Background rectangle representing Norwegian coast region
-    fig.add_shape(type="rect", x0=4.5, y0=58.3, x1=8.8, y1=63.2,
-                  fillcolor=CARD2, line=dict(color=TEAL2, width=1))
+    # ── Simplified Norwegian coastline outline (approximate polygon points) ──
+    # Western Norway coast: Boknafjord up to Nordfjord latitude
+    coast_lon = [4.5, 5.0, 5.2, 5.5, 5.3, 5.8, 6.0, 5.9, 6.2, 6.5,
+                 6.3, 6.8, 7.0, 6.9, 7.2, 7.5, 7.8, 8.0, 8.3, 8.5,
+                 8.5, 8.0, 7.5, 7.0, 6.5, 6.0, 5.5, 5.0, 4.5, 4.5]
+    coast_lat = [59.0, 59.1, 59.4, 59.5, 59.8, 60.0, 60.1, 60.4, 60.6, 60.8,
+                 61.0, 61.2, 61.4, 61.6, 61.8, 62.0, 62.3, 62.6, 62.8, 63.0,
+                 63.2, 63.2, 63.2, 63.2, 63.2, 63.2, 63.2, 63.2, 63.2, 59.0]
 
-    # Draw site markers
+    fig.add_trace(go.Scatter(
+        x=coast_lon, y=coast_lat,
+        mode="lines",
+        line=dict(color=TEAL2, width=1.5),
+        fill="toself",
+        fillcolor="rgba(15,110,86,0.08)",
+        hoverinfo="skip",
+        showlegend=False,
+        name="coastline",
+    ))
+
+    # Fjord labels
+    fjords = [
+        (6.35, 60.2, "Hardangerfjord"),
+        (6.1,  61.0, "Sognefjord"),
+        (5.55, 61.85,"Nordfjord"),
+        (5.65, 59.15,"Boknafjord"),
+    ]
+    for flon, flat, fname in fjords:
+        fig.add_annotation(
+            x=flon, y=flat + 0.25,
+            text=fname,
+            font=dict(color=DIM, size=9, family="Arial"),
+            showarrow=False,
+        )
+
+    # ── Site markers ──
     for name, s in SITES.items():
         short = name.split("—")[1].strip()
         col = risk_colour(s["risk_level"])
         is_sel = name == selected
-        sz = 16 + s["risk"] // 8
+        sz = 14 + s["risk"] // 9
+
+        # Pulse ring for selected site
+        if is_sel:
+            fig.add_trace(go.Scatter(
+                x=[s["lon"]], y=[s["lat"]],
+                mode="markers",
+                marker=dict(size=sz+12, color="rgba(0,0,0,0)",
+                            line=dict(color=col, width=2)),
+                hoverinfo="skip", showlegend=False,
+            ))
+
         fig.add_trace(go.Scatter(
             x=[s["lon"]], y=[s["lat"]],
             mode="markers+text",
             marker=dict(
                 size=sz,
                 color=col,
-                opacity=1.0 if is_sel else 0.7,
+                opacity=1.0 if is_sel else 0.8,
                 line=dict(color=WHITE, width=2 if is_sel else 1),
-                symbol="circle",
             ),
-            text=[f"  {short}"],
+            text=[f"  {short}  {s['risk']}%"],
             textposition="middle right",
             textfont=dict(color=WHITE, size=11, family="Arial"),
             hovertemplate=(
                 f"<b>{short}</b><br>"
                 f"HAB Risk: {s['risk']}%<br>"
-                f"Risk level: {s['risk_level']}<br>"
+                f"Risk: {s['risk_level']}<br>"
                 f"SST: {s['sst']}°C<extra></extra>"
             ),
-            name=short,
             showlegend=False,
         ))
-
-    # Risk annotations
-    for name, s in SITES.items():
-        short = name.split("—")[1].strip()
-        col = risk_colour(s["risk_level"])
-        fig.add_annotation(
-            x=s["lon"], y=s["lat"]-0.18,
-            text=f"{s['risk']}%",
-            font=dict(color=col, size=10, family="Arial"),
-            showarrow=False,
-        )
 
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor=CARD,
-        margin=dict(l=40, r=20, t=10, b=40),
-        height=360,
+        margin=dict(l=50, r=20, t=10, b=50),
+        height=380,
         showlegend=False,
         xaxis=dict(
             title=dict(text="Longitude (°E)", font=dict(color=DIM, size=11)),
-            range=[4.2, 9.2], color=DIM,
-            gridcolor="rgba(15,110,86,0.2)", linecolor=TEAL2,
+            range=[4.2, 9.5],
+            color=DIM, linecolor=TEAL2,
+            gridcolor="rgba(15,110,86,0.15)",
             tickfont=dict(color=DIM, size=10),
+            dtick=1,
         ),
         yaxis=dict(
             title=dict(text="Latitude (°N)", font=dict(color=DIM, size=11)),
-            range=[58.0, 63.5], color=DIM,
-            gridcolor="rgba(15,110,86,0.2)", linecolor=TEAL2,
+            range=[58.5, 63.5],
+            color=DIM, linecolor=TEAL2,
+            gridcolor="rgba(15,110,86,0.15)",
             tickfont=dict(color=DIM, size=10),
+            dtick=1,
         ),
         annotations=[
             dict(x=0.01, y=0.99, xref="paper", yref="paper",
-                 text="Norwegian Aquaculture Sites", showarrow=False,
-                 font=dict(color=LIGHT, size=12), xanchor="left", yanchor="top"),
-        ]
+                 text="Norwegian Aquaculture Sites — HAB Risk Monitor",
+                 showarrow=False, font=dict(color=LIGHT, size=11),
+                 xanchor="left", yanchor="top"),
+        ],
     )
     return fig
 
@@ -355,19 +389,21 @@ def sst_map():
         height=380,
         xaxis=dict(
             title=dict(text="Longitude (°E)", font=dict(color=DIM, size=11)),
-            color=DIM, gridcolor="rgba(15,110,86,0.33)", linecolor=TEAL2,
-            tickfont=dict(color=DIM, size=10),
+            range=[4.2, 9.0],
+            color=DIM, gridcolor="rgba(15,110,86,0.15)", linecolor=TEAL2,
+            tickfont=dict(color=DIM, size=10), dtick=1,
         ),
         yaxis=dict(
             title=dict(text="Latitude (°N)", font=dict(color=DIM, size=11)),
-            color=DIM, gridcolor="rgba(15,110,86,0.33)", linecolor=TEAL2,
-            tickfont=dict(color=DIM, size=10),
+            range=[58.2, 63.3],
+            color=DIM, gridcolor="rgba(15,110,86,0.15)", linecolor=TEAL2,
+            tickfont=dict(color=DIM, size=10), dtick=1,
         ),
         annotations=[dict(
             x=0.01, y=0.98, xref="paper", yref="paper",
-            text="Norwegian Coast — Sea Surface Temperature",
+            text="Norwegian Coast — Sea Surface Temperature (°C)",
             showarrow=False,
-            font=dict(color=LIGHT, size=12),
+            font=dict(color=LIGHT, size=11),
             bgcolor=CARD, bordercolor=TEAL2, borderwidth=1,
             xanchor="left", yanchor="top",
         )],
