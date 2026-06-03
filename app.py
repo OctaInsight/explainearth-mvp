@@ -41,6 +41,20 @@ st.markdown(f"""<style>
 
 def rcol(lvl): return {"CRITICAL":RED,"HIGH":AMBER,"MEDIUM":"#d4c44a","LOW":TEAL}[lvl]
 
+def calc_exposure(fish_tonnes, risk_pct):
+    """
+    Realistic financial exposure for Norwegian salmon aquaculture.
+    Biomass value: €9/kg (Norwegian salmon export price, 2024 Seafood Council data).
+    Disruption factor: 1.5x to account for harvest delay, emergency operations,
+    and regulatory compliance costs — consistent with published industry loss estimates.
+    Exposure is probability-weighted over the 4-week forecast window.
+    Returns float in millions of euros (€M).
+    Example: 510t × €9/kg × 1.5 × 82% = €5.6M
+    """
+    biomass_eur = fish_tonnes * 1000 * 9          # tonnes → kg → EUR at €9/kg
+    exposure    = biomass_eur * 1.5 * (risk_pct / 100)
+    return round(exposure / 1_000_000, 1)         # return in €M
+
 # ── LOAD LIVE DATA ────────────────────────────────────────────────────────────
 with st.spinner("Fetching environmental data..."):
     obs = fetch_site_observations()
@@ -70,6 +84,14 @@ for name, coords in SITE_COORDS.items():
 
 data_source = list(SITES.values())[0]["data_source"]
 is_live     = data_source == "CMEMS NRT"
+
+# ── SESSION STATE — auto-close platform status on navigation change ───────────
+if "show_platform_status" not in st.session_state:
+    st.session_state["show_platform_status"] = False
+if "last_page" not in st.session_state:
+    st.session_state["last_page"] = None
+if "last_site" not in st.session_state:
+    st.session_state["last_site"] = None
 
 # ── PLATFORM STATUS TEXT (shared, shown via expander) ─────────────────────────
 def platform_status_block():
@@ -130,10 +152,16 @@ with st.sidebar:
     selected_site = st.selectbox("Site", list(SITES.keys()), label_visibility="collapsed")
     site = SITES[selected_site]
 
+    # Auto-close platform status when page or site changes
+    if page != st.session_state["last_page"] or selected_site != st.session_state["last_site"]:
+        st.session_state["show_platform_status"] = False
+        st.session_state["show_platform_status"] = False
+    st.session_state["last_page"] = page
+    st.session_state["last_site"] = selected_site
+
     st.markdown('<div style="margin-top:20px;"></div>', unsafe_allow_html=True)
-    # ── Instruction 1: replace sidebar data block with a button ──
     if st.button("📋 View Data & Model Status", use_container_width=True):
-        st.session_state["show_platform_status"] = not st.session_state.get("show_platform_status", False)
+        st.session_state["show_platform_status"] = not st.session_state["show_platform_status"]
 
     st.markdown(f'<p style="font-size:11px;color:{DIM};margin-top:10px;">Updated: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC<br>Sources: Copernicus · CMEMS · MET Norway</p>', unsafe_allow_html=True)
 
@@ -309,8 +337,8 @@ elif page == "Forecast":
         for w,p in zip(["Now","Week 1","Week 2","Week 3","Week 4"],site["weeks"]):
             c=RED if p>=60 else AMBER if p>=40 else TEAL
             st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:5px;padding:9px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;"><span style="color:{LIGHT};font-size:13px;">{w}</span><span style="color:{c};font-weight:700;font-size:15px;">{p}%</span></div>', unsafe_allow_html=True)
-        exp=site["fish_tonnes"]*4800/1000
-        st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:6px;padding:14px;margin-top:12px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Financial exposure</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€{exp:.1f}M</div><div style="color:{DIM};font-size:11px;margin-top:2px;">{site["fish_tonnes"]}t biomass · €4,800/t avg value</div></div>', unsafe_allow_html=True)
+        exp=calc_exposure(site["fish_tonnes"],site["risk"])
+        st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:6px;padding:14px;margin-top:12px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Estimated Financial Exposure</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€{exp}M</div><div style="color:{DIM};font-size:11px;margin-top:2px;">{site["fish_tonnes"]}t biomass · {site["risk"]}% probability · 4-week forecast window</div><div style="color:{DIM};font-size:10px;margin-top:3px;font-style:italic;">Based on biomass at risk, HAB probability, and forecast horizon.</div></div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="shdr" style="margin-top:18px;">Model Input Variables</div>', unsafe_allow_html=True)
     st.dataframe(pd.DataFrame({
@@ -327,15 +355,15 @@ elif page == "Recommendations":
     st.markdown(f'<h1 style="font-size:26px;margin-bottom:4px;">Priority Decisions — {short}</h1>', unsafe_allow_html=True)
     st.markdown(f'<p style="color:{DIM};font-size:13px;margin-bottom:16px;">ExplainEarth Decision Intelligence · {site["risk"]}% HAB probability · Implementation window: 72 hours</p>', unsafe_allow_html=True)
 
-    sav=site["fish_tonnes"]*4800/1000
+    sav=calc_exposure(site["fish_tonnes"],site["risk"])
     # Instruction 10: reinforce decision intelligence language
-    st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:8px;padding:18px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;"><div><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Financial exposure</div><div style="color:{WHITE};font-size:30px;font-weight:700;margin-top:4px;">€{sav:.1f}M</div><div style="color:{DIM};font-size:12px;margin-top:2px;">{site["fish_tonnes"]}t biomass · {site["risk"]}% probability · 4-week implementation window</div></div><div style="text-align:right;"><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Resource protection</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€50–200K/yr</div><div style="color:{DIM};font-size:12px;margin-top:2px;">ExplainEarth subscription · Payback: first alert</div></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background:{CARD2};border:.5px solid {TEAL};border-radius:8px;padding:18px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;"><div><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Estimated Financial Exposure</div><div style="color:{WHITE};font-size:30px;font-weight:700;margin-top:4px;">€{sav}M</div><div style="color:{DIM};font-size:12px;margin-top:2px;">{site["fish_tonnes"]}t biomass · {site["risk"]}% probability · 4-week implementation window</div><div style="color:{DIM};font-size:10px;margin-top:3px;font-style:italic;">Based on biomass at risk, HAB probability, and forecast horizon.</div></div><div style="text-align:right;"><div style="color:{TEAL};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Resource protection</div><div style="color:{WHITE};font-size:22px;font-weight:700;margin-top:4px;">€50k–200k/yr</div><div style="color:{DIM};font-size:12px;margin-top:2px;">Annual subscription per company · Payback: first alert</div></div></div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="shdr">Recommended Actions — implementation window: 72 hours</div>', unsafe_allow_html=True)
     for icon,title,body in [
         ("🚢","Move cages to lower-risk zone", f"Relocate biomass to Site 7 — Sognefjord (28% HAB risk). Cost: €80–120K. Loss avoided: €1.8–3.2M."),
         ("📉","Reduce stocking density",        "Lower biomass per cage by 30% to reduce environmental stress and mortality risk."),
-        ("⏩","Accelerate harvest schedule",     f"Bring forward harvest of {int(site['fish_tonnes']*0.4)}t mature stock. Reduces financial exposure by ~€{site['fish_tonnes']*0.4*4800/1000:.1f}M."),
+        ("⏩","Accelerate harvest schedule",     f"Bring forward harvest of {int(site['fish_tonnes']*0.4)}t mature stock. Reduces financial exposure by ~€{round(site['fish_tonnes']*0.4*1000*7/1_000_000,1)}M."),
     ]:
         st.markdown(f'<div class="rec"><div style="color:{TEAL};font-weight:600;font-size:14px;margin-bottom:4px;">{icon} {title}</div><div style="color:{LIGHT};font-size:13px;">{body}</div></div>', unsafe_allow_html=True)
 
@@ -346,7 +374,7 @@ elif page == "Recommendations":
     ]:
         st.markdown(f'<div class="rec" style="border-left-color:{DIM};"><div style="color:{DIM};font-weight:600;font-size:14px;margin-bottom:4px;">{icon} {title}</div><div style="color:{LIGHT};font-size:13px;">{body}</div></div>', unsafe_allow_html=True)
 
-    st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:16px 20px;margin-top:18px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Dual Mission — Resource Protection & SDG Alignment</div><p style="color:{LIGHT};font-size:13px;margin:0;">When ExplainEarth prevents this event, it is not just <strong style="color:{WHITE};">€{sav:.1f}M</strong> recovered. It is <strong style="color:{TEAL};">{site["fish_tonnes"]}t of food</strong>, ocean biomass, and years of natural growth returned to people and planet.</p><p style="color:{DIM};font-size:12px;margin:8px 0 0;">SDG 2 Zero Hunger · SDG 12 Responsible Consumption · SDG 13 Climate Action · SDG 14 Life Below Water</p></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background:{CARD};border:.5px solid {TEAL2};border-radius:8px;padding:16px 20px;margin-top:18px;"><div style="color:{TEAL};font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Dual Mission — Resource Protection & SDG Alignment</div><p style="color:{LIGHT};font-size:13px;margin:0;">When ExplainEarth prevents this event, it is not just <strong style="color:{WHITE};">€{sav}M</strong> recovered. It is <strong style="color:{TEAL};">{site["fish_tonnes"]}t of food</strong>, ocean biomass, and years of natural growth returned to people and planet.</p><p style="color:{DIM};font-size:12px;margin:8px 0 0;">SDG 2 Zero Hunger · SDG 12 Responsible Consumption · SDG 13 Climate Action · SDG 14 Life Below Water</p></div>', unsafe_allow_html=True)
 
 # ── ABOUT ─────────────────────────────────────────────────────────────────────
 elif page == "About":
