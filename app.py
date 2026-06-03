@@ -80,8 +80,56 @@ with st.sidebar:
     selected_site = st.selectbox("Site", list(SITES.keys()), label_visibility="collapsed")
     site = SITES[selected_site]
     st.markdown(f'<div class="shdr" style="margin-top:20px;">Data Status</div>', unsafe_allow_html=True)
-    st.markdown(f'<p style="font-size:12px;color:{TEAL if data_source=="CMEMS NRT" else AMBER};">{src_label}</p>', unsafe_allow_html=True)
-    st.markdown(f'<p style="font-size:11px;color:{DIM};margin-top:2px;">Updated: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC<br>Sources: Copernicus · CMEMS · MET Norway</p>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="background:#0a1f16;border:1px solid {TEAL2};border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+      <div style="color:{TEAL};font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">
+        Early Product Prototype — v0.1
+      </div>
+      <div style="color:{DIM};font-size:11px;line-height:1.6;">
+        We are transparent about what is real and what is not yet integrated.
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="color:{TEAL};font-size:10px;font-weight:600;margin-bottom:4px;">✅ LIVE DATA</div>
+        <div style="color:{LIGHT};font-size:11px;line-height:1.6;">
+          · Sea Surface Temperature (SST)<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">Copernicus CMEMS NRT satellite, daily</span><br>
+          · SST anomaly vs baseline<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">Computed from CMEMS + climatology</span>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="color:{AMBER};font-size:10px;font-weight:600;margin-bottom:4px;">⚙ SIMULATED (realistic)</div>
+        <div style="color:{LIGHT};font-size:11px;line-height:1.6;">
+          · Nutrient load index<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">Based on seasonal models, not live</span><br>
+          · Chlorophyll-a concentration<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">Copernicus Ocean Colour — integration planned</span><br>
+          · HAB risk score & forecast<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">Threshold model on real SST + simulated inputs</span>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="color:{RED};font-size:10px;font-weight:600;margin-bottom:4px;">🔧 NOT YET INTEGRATED</div>
+        <div style="color:{LIGHT};font-size:11px;line-height:1.6;">
+          · IoT sensor networks<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">In-situ buoy data — hardware roadmap Q2 2027</span><br>
+          · Wind & current anomalies<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">MET Norway API — integration planned Q4 2026</span><br>
+          · ML forecasting model<br>
+          &nbsp;&nbsp;<span style="color:{DIM};">Supervised model training — in development</span>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid {TEAL2};">
+        <div style="color:{DIM};font-size:10px;line-height:1.5;">
+          Updated: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def forecast_chart(s):
