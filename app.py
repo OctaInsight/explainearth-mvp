@@ -249,10 +249,15 @@ def sst_map():
         lat=lat_grid.flatten(), lon=lon_grid.flatten(),
         z=sst.flatten(), radius=18,
         colorscale=[[0,"#0a2a4a"],[0.4,"#0F6E56"],[0.7,"#e09a3f"],[1.0,"#e07a5f"]],
-        colorbar=dict(title="SST °C", tickfont=dict(color=LIGHT), titlefont=dict(color=LIGHT)),
         hovertemplate="SST: %{z:.1f}°C<extra></extra>",
         zmin=9, zmax=15,
     ))
+    fig.update_coloraxes(
+        colorbar=dict(
+            title=dict(text="SST °C", font=dict(color=LIGHT)),
+            tickfont=dict(color=LIGHT),
+        )
+    )
     fig.update_layout(
         mapbox=dict(style="carto-darkmatter", center=dict(lat=60.5, lon=6.2), zoom=5.5),
         paper_bgcolor="rgba(0,0,0,0)",
