@@ -237,32 +237,102 @@ def map_chart(selected):
 
 def sst_map():
     # Simulated SST grid over Norwegian coast
-    lats = np.linspace(58.5, 63.0, 30)
-    lons = np.linspace(4.5, 8.5, 30)
+    lats = np.linspace(58.5, 63.0, 22)
+    lons = np.linspace(4.5, 8.5, 22)
     lon_grid, lat_grid = np.meshgrid(lons, lats)
-    # Simulate SST with a warm anomaly near Hardangerfjord
-    sst = 11.0 + 2.5 * np.exp(-((lat_grid-60.2)**2 + (lon_grid-6.4)**2) / 1.2) \
-              + 1.8 * np.exp(-((lat_grid-59.2)**2 + (lon_grid-5.7)**2) / 0.8) \
-              + np.random.RandomState(42).normal(0, 0.2, lon_grid.shape)
 
-    fig = go.Figure(go.Densitymapbox(
-        lat=lat_grid.flatten(), lon=lon_grid.flatten(),
-        z=sst.flatten(), radius=18,
-        colorscale=[[0,"#0a2a4a"],[0.4,"#0F6E56"],[0.7,"#e09a3f"],[1.0,"#e07a5f"]],
-        hovertemplate="SST: %{z:.1f}°C<extra></extra>",
-        zmin=9, zmax=15,
+    # Simulate SST with warm anomalies near high-risk sites
+    sst = 11.0 \
+        + 2.5 * np.exp(-((lat_grid-60.2)**2 + (lon_grid-6.4)**2) / 1.2) \
+        + 1.8 * np.exp(-((lat_grid-59.2)**2 + (lon_grid-5.7)**2) / 0.8) \
+        + 0.8 * np.exp(-((lat_grid-61.9)**2 + (lon_grid-5.6)**2) / 0.6) \
+        + np.random.RandomState(42).normal(0, 0.15, lon_grid.shape)
+
+    sst_flat = sst.flatten()
+    lat_flat = lat_grid.flatten()
+    lon_flat = lon_grid.flatten()
+
+    # Map SST to colour — cool teal → warm amber → hot red
+    def sst_to_color(val, vmin=9.5, vmax=14.5):
+        t = max(0, min(1, (val - vmin) / (vmax - vmin)))
+        if t < 0.4:
+            # teal → green
+            r = int(10 + t/0.4 * (30 - 10))
+            g = int(80 + t/0.4 * (120 - 80))
+            b = int(80 - t/0.4 * 40)
+        elif t < 0.7:
+            # green → amber
+            s = (t - 0.4) / 0.3
+            r = int(30 + s * 200)
+            g = int(120 + s * 30)
+            b = int(40 - s * 30)
+        else:
+            # amber → red
+            s = (t - 0.7) / 0.3
+            r = int(230)
+            g = int(150 - s * 90)
+            b = int(10 - s * 5)
+        return f"rgb({r},{g},{b})"
+
+    colours = [sst_to_color(v) for v in sst_flat]
+
+    fig = go.Figure()
+
+    # Draw coloured grid points as filled circles — creates heatmap effect
+    fig.add_trace(go.Scattermapbox(
+        lat=lat_flat.tolist(),
+        lon=lon_flat.tolist(),
+        mode="markers",
+        marker=dict(
+            size=18,
+            color=sst_flat.tolist(),
+            colorscale=[
+                [0.0, "#0a3a5a"],
+                [0.3, "#0F6E56"],
+                [0.6, "#e09a3f"],
+                [1.0, "#e07a5f"],
+            ],
+            cmin=9.5,
+            cmax=14.5,
+            opacity=0.75,
+            colorbar=dict(
+                title=dict(text="SST °C", font=dict(color=LIGHT, size=12)),
+                tickfont=dict(color=LIGHT, size=11),
+                thickness=12,
+                len=0.7,
+                x=1.0,
+            ),
+        ),
+        hovertemplate="Lat: %{lat:.2f}°N<br>Lon: %{lon:.2f}°E<br>SST: %{marker.color:.1f}°C<extra></extra>",
+        name="SST",
     ))
-    fig.update_coloraxes(
-        colorbar=dict(
-            title=dict(text="SST °C", font=dict(color=LIGHT)),
-            tickfont=dict(color=LIGHT),
-        )
-    )
+
+    # Overlay site markers on top
+    for name, s in SITES.items():
+        short = name.split("—")[1].strip()
+        col = risk_colour(s["risk_level"])
+        fig.add_trace(go.Scattermapbox(
+            lat=[s["lat"]], lon=[s["lon"]],
+            mode="markers+text",
+            marker=dict(size=14, color=col, opacity=1.0),
+            text=[short], textposition="top right",
+            textfont=dict(color=WHITE, size=11),
+            hovertemplate=f"<b>{short}</b><br>HAB Risk: {s['risk']}%<br>SST: {s['sst']}°C<extra></extra>",
+            name=short,
+            showlegend=False,
+        ))
+
     fig.update_layout(
-        mapbox=dict(style="carto-darkmatter", center=dict(lat=60.5, lon=6.2), zoom=5.5),
+        mapbox=dict(
+            style="carto-darkmatter",
+            center=dict(lat=60.5, lon=6.2),
+            zoom=5.2,
+        ),
         paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=0, b=0),
-        height=360,
+        height=380,
+        showlegend=False,
     )
     return fig
 
